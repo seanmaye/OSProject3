@@ -83,13 +83,13 @@ pte_t *translate(pde_t *pgdir, void *va) {
     //If translation not successful, then return NULL
     
     unsigned int mask1stlevel = 0xFFC00000;
-    unsigned int mask2ndLevel = 0x007FE000;
+    unsigned int mask2ndlevel = 0x007FE000;
     unsigned int first10 =((unsigned int)va & mask1stlevel) >> 22;
     unsigned int next10 = ((unsigned int)va & mask2ndlevel) >> 13;
     unsigned int offset = (unsigned int)va&0xFFF;
     //shift bits to get offset (12)
     //use first 10 bits and create pte then use the next 10 bits to get physical address from there we combine the address with the offset 
-    pte_t secondLevel = *pgdir &mask1stnevel;
+    pte_t secondLevel = *pgdir &mask1stlevel;
     unsigned int physicalAddress = secondLevel&mask2ndlevel; //whatever next 10 represents 
 
 
