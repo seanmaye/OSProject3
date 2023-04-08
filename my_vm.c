@@ -1,4 +1,6 @@
 #include "my_vm.h"
+#define PTE_W (1 << 1)
+#define PTE_P (1 << 0)
 
 /*
 Function responsible for allocating and setting your physical memory 
@@ -111,7 +113,42 @@ page_map(pde_t *pgdir, void *va, void *pa)
     and page table (2nd-level) indices. If no mapping exists, set the
     virtual to physical mapping */
 
-    return -1;
+    //straight from translate()
+    unsigned int mask1stlevel = 0xFFC00000;
+    unsigned int mask2ndlevel = 0x007FE000;
+    unsigned int first10 =((unsigned int)va & mask1stlevel) >> 22;
+    unsigned int next10 = ((unsigned int)va & mask2ndlevel) >> 13;
+    unsigned int offset = (unsigned int)va&0xFFF;
+
+    if (!(pgdir[first10] & PTE_P)) {
+        // If it dont exist, make new second-level page table
+        pte_t *new_pte = malloc(PGSIZE);
+        if (!new_pte) {
+            // Fails, return -1
+            printf("there was a prblem making a new page table entry\n");
+            return -1;
+        }
+        // new page table
+        memset(new_pte, 0, PGSIZE);
+        // Set the present bit and the write bit for the page table
+        pgdir[first10] = ((unsigned int)new_pte) | PTE_P | PTE_W;
+    }
+    pte_t *pt_entry = (pte_t *)(pgdir[first10] & ~0xFFF);
+    unsigned int physical_address = pt_entry[next10] & ~0xFFF;
+    // Check if the page table entry is already present
+    if (!(pt_entry[next10] & PTE_P)) {
+        // If it's not present, set the page table entry
+        pt_entry[next10] = ((unsigned int)pa) | PTE_P | PTE_W;
+    } else {
+        // If it's already present, return an error
+        return -1;
+    }
+    return 0;
+    
+}
+
+int main() {
+    return 0;
 }
 
 
