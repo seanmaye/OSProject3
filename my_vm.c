@@ -1,21 +1,24 @@
 #include "my_vm.h"
-#define PTE_W (1 << 1)
-#define PTE_P (1 << 0)
+#include <math.h>
+#include <stdint.h>
+
+int firstTime = 0;
+unsigned int phys_bitmap[BITMAP_SIZE];
+unsigned int virt_bitmap[BITMAP_SIZE];
 
 /*
 Function responsible for allocating and setting your physical memory 
 */
 void set_physical_mem() {
 
-    char * RAM = malloc(MEMSIZE);
+    void * RAM = malloc(MEMSIZE);
+    memset(RAM, 0, MEMSIZE);
+    
 
     //Allocate physical memory using mmap or malloc; this is the total size of
     //your memory you are simulating
-
-    
     //HINT: Also calculate the number of physical and virtual pages and allocate
     //virtual and physical bitmaps and initialize them
-
 }
 
 
@@ -108,55 +111,46 @@ virtual address is not present, then a new entry will be added
 int
 page_map(pde_t *pgdir, void *va, void *pa)
 {
-
-    /*HINT: Similar to translate(), find the page directory (1st level)
-    and page table (2nd-level) indices. If no mapping exists, set the
-    virtual to physical mapping */
+    /* HINT: Similar to translate(), find the page directory (1st level)
+     * and page table (2nd-level) indices. If no mapping exists, set the
+     * virtual to physical mapping.
+     */
 
     //straight from translate()
     unsigned int mask1stlevel = 0xFFC00000;
-    unsigned int mask2ndlevel = 0x007FE000;
+    unsigned int mask2ndlevel = 0x003FF000;
     unsigned int first10 =((unsigned int)va & mask1stlevel) >> 22;
-    unsigned int next10 = ((unsigned int)va & mask2ndlevel) >> 13;
-    unsigned int offset = (unsigned int)va&0xFFF;
+    unsigned int next10 = ((unsigned int)va & mask2ndlevel) >> 12;
 
-    if (!(pgdir[first10] & PTE_P)) {
-        // If it dont exist, make new second-level page table
-        pte_t *new_pte = malloc(PGSIZE);
-        if (!new_pte) {
-            // Fails, return -1
-            printf("there was a prblem making a new page table entry\n");
-            return -1;
-        }
-        // new page table
-        memset(new_pte, 0, PGSIZE);
-        // Set the present bit and the write bit for the page table
-        pgdir[first10] = ((unsigned int)new_pte) | PTE_P | PTE_W;
+    if ((virt_bitmap[first10]) == 1) {
+        return 1; //return 1 to tmalloc to show that this VA is already mapped
     }
-    pte_t *pt_entry = (pte_t *)(pgdir[first10] & ~0xFFF);
-    unsigned int physical_address = pt_entry[next10] & ~0xFFF;
-    // Check if the page table entry is already present
-    if (!(pt_entry[next10] & PTE_P)) {
-        // If it's not present, set the page table entry
-        pt_entry[next10] = ((unsigned int)pa) | PTE_P | PTE_W;
-    } else {
-        // If it's already present, return an error
-        return -1;
+    else {
+        // t_malloc(PGSIZE);
+        return 0; // return 0 to tmalloc to show that this VA is not mapped
     }
-    return 0;
-    
 }
 
-int main() {
-    return 0;
-}
 
 
 /*Function that gets the next available page
 */
 void *get_next_avail(int num_pages) {
  
-    //Use virtual address bitmap to find the next free page
+    //Use virtual address bitmap to find the next free pag
+    int i=0;
+    for(int i=0; i<BITMAP_SIZE; i++){
+        if(virt_bitmap[i]==0){
+        for(int j=i; j<num_pages+j; j++){
+            if(virt_bitmap[j]==1){
+                break;
+            }else if(((num_pages+j)-1 ==j)&& virt_bitmap[j]==0){
+                return &virt_bitmap+i;
+            }
+        }
+        }
+    }
+    
 }
 
 
@@ -175,6 +169,18 @@ void *t_malloc(unsigned int num_bytes) {
     * free pages are available, set the bitmaps and map a new page. Note, you will 
     * have to mark which physical pages are used. 
     */
+    int num_pages = num_bytes/PGSIZE;
+    void * page_addr = get_next_avail(num_pages);
+    void * block_addr = ;
+
+
+
+   if(firstTime==0){
+    set_physical_mem();
+    firstTime++;
+   }
+   int numberPages = ceil(num_bytes/PGSIZE);
+
 
     return NULL;
 }
@@ -219,6 +225,20 @@ void get_value(void *va, void *val, int size) {
     */
 
 
+}
+
+void set_bit(unsigned int* bitmap, size_t i) {
+    bitmap[i / 32] |= 1 << (i % 32);
+}
+
+// Clear the i-th element in the bitmap
+void clear_bit(unsigned int* bitmap, size_t i) {
+    bitmap[i / 32] &= ~(1 << (i % 32));
+}
+
+// Test whether the i-th element is in the bitmap
+int test_bit(unsigned int* bitmap, size_t i) {
+    return (bitmap[i / 32] & (1 << (i % 32))) != 0;
 }
 
 
