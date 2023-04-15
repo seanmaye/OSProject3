@@ -23,6 +23,16 @@ typedef unsigned long pte_t;
 // Represents a page directory entry
 typedef unsigned long pde_t;
 
+struct page_table{
+    pte_t pte[PGSIZE];
+    char* bitmap[PGSIZE];
+};
+
+struct page_directory{
+    pde_t pde[PGSIZE];
+    char* bitamp[PGSIZE];
+};
+
 #define TLB_ENTRIES 512
 
 //Structure to represents TLB
