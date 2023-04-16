@@ -17,20 +17,28 @@
 // Size of "physcial memory"
 #define MEMSIZE 1024*1024*1024
 
+//size of bitmap
+#define VIRT_BITMAP_SIZE (MEMSIZE/PGSIZE)
+#define PHYS_BITMAP_SIZE (MAX_MEMSIZE/PGSIZE)
+
+
 // Represents a page table entry
 typedef unsigned long pte_t;
 
 // Represents a page directory entry
 typedef unsigned long pde_t;
 
+//reprsents a page table
 struct page_table{
-    pte_t pte[PGSIZE];
-    char* bitmap[PGSIZE];
+    pte_t pte[PGSIZE/sizeof(pte_t)];
+    //bit map that corresponds to each page
+    
 };
 
+//Represents a page directory
 struct page_directory{
-    pde_t pde[PGSIZE];
-    char* bitamp[PGSIZE];
+    pde_t pde[PGSIZE/sizeof(pte_t)];
+    //bit map that corresponds to each page
 };
 
 #define TLB_ENTRIES 512
@@ -41,6 +49,10 @@ struct tlb {
     * Think about the size of each TLB entry that performs virtual to physical
     * address translation.
     */
+
+   unsigned int va*;
+   unsigned int pa*;
+   int rank;
 
 };
 struct tlb tlb_store;

@@ -3,17 +3,32 @@
 #include <stdint.h>
 
 int firstTime = 0;
-unsigned int phys_bitmap[BITMAP_SIZE];
-unsigned int virt_bitmap[BITMAP_SIZE];
+char* phys_bitmap[PHYS_BITMAP_SIZE]; 
+char* virt_bitmap[VIRT_BITMAP_SIZE]; 
+char* RAM;
+
+//Main pages directory: its a two-dimensional array pageDirectory[i][j] where i is a pde_t and where j is a pte_t
+pte_t **pageDirectory;
+
 
 /*
 Function responsible for allocating and setting your physical memory 
 */
 void set_physical_mem() {
 
-    void * RAM = malloc(MEMSIZE);
+    RAM = malloc(MEMSIZE);
     memset(RAM, 0, MEMSIZE);
-    
+    memset(phys_bitmap, 0, PHYS_BITMAP_SIZE);
+    memset(virt_bitmap, 0, VIRT_BITMAP_SIZE); 
+    int entries = pow(2,10);
+
+    //allocating array
+pageDirectory = (pte_t **)malloc(entries * sizeof(pte_t *)); 
+
+for (int i = 0; i < entries; i++) {
+    pageDirectory[i] = (pte_t *)malloc(sizeof(pte_t));
+}
+
 
     //Allocate physical memory using mmap or malloc; this is the total size of
     //your memory you are simulating
@@ -94,7 +109,7 @@ pte_t *translate(pde_t *pgdir, void *va) {
     unsigned int offset = (unsigned int)va&0xFFF;
     //shift bits to get offset (12)
     //use first 10 bits and create pte then use the next 10 bits to get physical address from there we combine the address with the offset 
-    pte_t secondLevel = *pgdir &mask1stlevel;
+    pte_t secondLevel = *pgdir +(first10 *sizeof(pde_t));
     unsigned int physicalAddress = secondLevel&mask2ndlevel; //whatever next 10 represents 
 
 
@@ -126,7 +141,7 @@ page_map(pde_t *pgdir, void *va, void *pa)
         return 1; //return 1 to tmalloc to show that this VA is already mapped
     }
     else {
-        // t_malloc(PGSIZE);
+        virt_bitmap[first10] = 1;
         return 0; // return 0 to tmalloc to show that this VA is not mapped
     }
 }
@@ -139,7 +154,7 @@ void *get_next_avail(int num_pages) {
  
     //Use virtual address bitmap to find the next free pag
     int i=0;
-    for(int i=0; i<BITMAP_SIZE; i++){
+    for(int i=0; i<VIRT_BITMAP_SIZE; i++){
         if(virt_bitmap[i]==0){
         for(int j=i; j<num_pages+j; j++){
             if(virt_bitmap[j]==1){
@@ -150,7 +165,6 @@ void *get_next_avail(int num_pages) {
         }
         }
     }
-    
 }
 
 
@@ -169,9 +183,36 @@ void *t_malloc(unsigned int num_bytes) {
     * free pages are available, set the bitmaps and map a new page. Note, you will 
     * have to mark which physical pages are used. 
     */
-    int num_pages = num_bytes/PGSIZE;
-    void * page_addr = get_next_avail(num_pages);
-    void * block_addr = ;
+
+    
+    int num_pages = num_bytes/PGSIZE + 1;
+    unsigned int * page_addr = get_next_avail(num_pages);
+    if(num_pages == 1){
+       page_addr = 1; //does this need to be a pointer?
+        //this for loop finds the first spot in phys mem that is 0 and sets it to 1. IDK if its correct but its something for now
+        for(int i = 0; i < PHYS_BITMAP_SIZE; i++){
+            if(phys_bitmap[i]==0){
+                phys_bitmap[i] = 1;
+                break;
+            }
+        }
+        return &page_addr;
+    }
+
+    else{        
+        for(int i = 0 ; i < num_pages; i ++){
+        page_addr[i] = 1; // does this need a to be a pointer?
+           for(int j = 0; j < PHYS_BITMAP_SIZE; j++){
+            if(phys_bitmap[j]==0){
+                phys_bitmap[j] = 1;
+                break;
+            }
+        }
+        }
+        return &page_addr;
+    }
+    
+    
 
 
 
@@ -184,6 +225,7 @@ void *t_malloc(unsigned int num_bytes) {
 
     return NULL;
 }
+
 
 /* Responsible for releasing one or more memory pages using virtual address (va)
 */
@@ -226,22 +268,6 @@ void get_value(void *va, void *val, int size) {
 
 
 }
-
-void set_bit(unsigned int* bitmap, size_t i) {
-    bitmap[i / 32] |= 1 << (i % 32);
-}
-
-// Clear the i-th element in the bitmap
-void clear_bit(unsigned int* bitmap, size_t i) {
-    bitmap[i / 32] &= ~(1 << (i % 32));
-}
-
-// Test whether the i-th element is in the bitmap
-int test_bit(unsigned int* bitmap, size_t i) {
-    return (bitmap[i / 32] & (1 << (i % 32))) != 0;
-}
-
-
 
 /*
 This function receives two matrices mat1 and mat2 as an argument with size
