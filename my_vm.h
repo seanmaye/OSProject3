@@ -50,9 +50,9 @@ struct tlb {
     * address translation.
     */
 
-   unsigned int va*;
-   unsigned int pa*;
-   int rank;
+   unsigned int* va;
+   unsigned int* pa;
+   //int rank;
 
 };
 struct tlb tlb_store;

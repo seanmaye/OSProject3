@@ -1,3 +1,7 @@
+//Andrew San and Sean Maye ars400 sam710
+//Ilab: less
+
+
 #include "my_vm.h"
 #include <math.h>
 #include <stdint.h>
@@ -5,7 +9,14 @@
 int firstTime = 0;
 char* phys_bitmap[PHYS_BITMAP_SIZE]; 
 char* virt_bitmap[VIRT_BITMAP_SIZE]; 
+int tlb_counter = 0;
+
 char* RAM;
+int nextPage;
+
+//struct tlb* tlb_store[TLB_ENTRIES];
+struct tlb* tlb[TLB_ENTRIES];
+
 
 //Main pages directory: its a two-dimensional array pageDirectory[i][j] where i is a pde_t and where j is a pte_t
 pte_t **pageDirectory;
@@ -16,18 +27,18 @@ Function responsible for allocating and setting your physical memory
 */
 void set_physical_mem() {
 
-    RAM = malloc(MEMSIZE);
+    RAM = (char*)malloc(MEMSIZE);
     memset(RAM, 0, MEMSIZE);
     memset(phys_bitmap, 0, PHYS_BITMAP_SIZE);
     memset(virt_bitmap, 0, VIRT_BITMAP_SIZE); 
+    //memset(tlb_store,0,TLB_ENTRIES * sizeof(struct tlb));
     int entries = pow(2,10);
+    
+    pageDirectory = (pte_t **)malloc(entries * sizeof(pte_t *)); 
 
-    //allocating array
-pageDirectory = (pte_t **)malloc(entries * sizeof(pte_t *)); 
-
-for (int i = 0; i < entries; i++) {
-    pageDirectory[i] = (pte_t *)malloc(sizeof(pte_t));
-}
+    for (int i = 0; i < entries; i++) {
+        pageDirectory[i] = (pte_t *)malloc(sizeof(pte_t));
+    }
 
 
     //Allocate physical memory using mmap or malloc; this is the total size of
@@ -44,10 +55,15 @@ for (int i = 0; i < entries; i++) {
 int
 add_TLB(void *va, void *pa)
 {
-
+    if(tlb_counter>=TLB_ENTRIES){
+        tlb_counter = 0;
+    }
+        tlb[tlb_counter]->pa = pa;
+        tlb[tlb_counter]->va = va;
+        tlb_counter++;   
+    
     /*Part 2 HINT: Add a virtual to physical page translation to the TLB */
-
-    return -1;
+    return 1;
 }
 
 
@@ -58,9 +74,10 @@ add_TLB(void *va, void *pa)
  */
 pte_t *
 check_TLB(void *va) {
-
     /* Part 2: TLB lookup code here */
-
+    for(int i = 0; i<TLB_ENTRIES; i++){
+        if(tlb[i]->va == va) return translate(NULL, va); 
+    }
 
 
    /*This function should return a pte_t pointer*/
@@ -113,7 +130,7 @@ pte_t *translate(pde_t *pgdir, void *va) {
     unsigned int physicalAddress = secondLevel&mask2ndlevel; //whatever next 10 represents 
 
 
-    return (physicalAddress<<12)|offset; //anyshift here
+    return secondLevel; //anyshift here
 }
 
 
@@ -136,13 +153,14 @@ page_map(pde_t *pgdir, void *va, void *pa)
     unsigned int mask2ndlevel = 0x003FF000;
     unsigned int first10 =((unsigned int)va & mask1stlevel) >> 22;
     unsigned int next10 = ((unsigned int)va & mask2ndlevel) >> 12;
-
+ 
     if ((virt_bitmap[first10]) == 1) {
         return 1; //return 1 to tmalloc to show that this VA is already mapped
     }
     else {
         virt_bitmap[first10] = 1;
-        return 0; // return 0 to tmalloc to show that this VA is not mapped
+        pageDirectory[first10][next10] = pa;
+        return 0; 
     }
 }
 
@@ -184,46 +202,34 @@ void *t_malloc(unsigned int num_bytes) {
     * have to mark which physical pages are used. 
     */
 
-    
+    if(firstTime==0){
+        set_physical_mem();
+        firstTime++;
+    }
     int num_pages = num_bytes/PGSIZE + 1;
     unsigned int * page_addr = get_next_avail(num_pages);
-    if(num_pages == 1){
-       page_addr = 1; //does this need to be a pointer?
-        //this for loop finds the first spot in phys mem that is 0 and sets it to 1. IDK if its correct but its something for now
-        for(int i = 0; i < PHYS_BITMAP_SIZE; i++){
-            if(phys_bitmap[i]==0){
-                phys_bitmap[i] = 1;
+    unsigned long virtual_Address = (unsigned int) page_addr*PGSIZE;
+    unsigned long physical_Address;
+    
+    
+    for(int i =page_addr; i<page_addr+num_pages; i++){
+        virt_bitmap[i]=1;
+    }
+    
+    for (int i = 0; i < num_pages; i++) {
+        for (int j = 0; j < PHYS_BITMAP_SIZE; j++) {
+            if (phys_bitmap[j]!= 1) {
+                phys_bitmap[j]= 1;
+                physical_Address = RAM+PGSIZE * j;
+                page_map(pageDirectory,virtual_Address,physical_Address);
+                memset(physical_Address, 1, PGSIZE);
                 break;
             }
         }
-        return &page_addr;
+        virtual_Address+=sizeof(pte_t);
     }
-
-    else{        
-        for(int i = 0 ; i < num_pages; i ++){
-        page_addr[i] = 1; // does this need a to be a pointer?
-           for(int j = 0; j < PHYS_BITMAP_SIZE; j++){
-            if(phys_bitmap[j]==0){
-                phys_bitmap[j] = 1;
-                break;
-            }
-        }
-        }
-        return &page_addr;
-    }
-    
-    
-
-
-
-   if(firstTime==0){
-    set_physical_mem();
-    firstTime++;
-   }
-   int numberPages = ceil(num_bytes/PGSIZE);
-
-
-    return NULL;
+    //VA was incramented so we have to get the original starting point
+    return virtual_Address -(num_pages*sizeof(pte_t));
 }
 
 
@@ -237,7 +243,26 @@ void t_free(void *va, int size) {
      *
      * Part 2: Also, remove the translation from the TLB
      */
+    unsigned int mask1stlevel = 0xFFC00000;
+    unsigned int mask2ndlevel = 0x003FF000;
+    unsigned int first10 =((unsigned int)va & mask1stlevel) >> 22;
+    unsigned int next10 = ((unsigned int)va & mask2ndlevel) >> 12;
+    pageDirectory[first10][next10]=NULL;
     
+    int num_pages = size/PGSIZE + 1;
+    for(int i =0; i<num_pages; i++){
+         pte_t pa = translate(NULL, va);
+         unsigned int offset = (unsigned int)va&0xFFF;
+          unsigned int mask2ndlevel = 0x007FE000;
+          unsigned int physicalAddress = pa&mask2ndlevel;
+          pa=(physicalAddress>>12)||offset;
+         int distance =RAM[pa]-RAM[0];
+         int phys_index = distance/PGSIZE;
+         phys_bitmap[phys_index] = 0;
+          memset(pa, 0, PGSIZE);
+         //remove from physical and virtual remeber return page table
+         va+=sizeof(pte_t);
+    }    
 }
 
 
@@ -255,7 +280,8 @@ int put_value(void *va, void *val, int size) {
 
 
     /*return -1 if put_value failed and 0 if put is successfull*/
-
+    pte_t * pa = translate(NULL, va);
+    memcpy(pa,val,size);
 }
 
 
@@ -266,6 +292,8 @@ void get_value(void *va, void *val, int size) {
     * "val" address. Assume you can access "val" directly by derefencing them.
     */
 
+   pte_t * pa = translate(NULL, va);
+    memcpy(val,pa,size);
 
 }
 
