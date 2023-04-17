@@ -18,8 +18,8 @@
 #define MEMSIZE 1024*1024*1024
 
 //size of bitmap
-#define VIRT_BITMAP_SIZE (MEMSIZE/PGSIZE)
-#define PHYS_BITMAP_SIZE (MAX_MEMSIZE/PGSIZE)
+#define VIRT_BITMAP_SIZE (MAX_MEMSIZE/PGSIZE)
+#define PHYS_BITMAP_SIZE (MEMSIZE/PGSIZE)
 
 
 // Represents a page table entry
